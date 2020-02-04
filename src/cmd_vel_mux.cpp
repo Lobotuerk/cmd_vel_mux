@@ -146,7 +146,6 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     if (!list_[i]->timer_)
     {
       // Create (stopped by now) a one-shot timer for every subscriber, if it doesn't exist yet
-      //RCLCPP_INFO_STREAM(get_logger(), "Timeout for " << list_[i]->name_ << " in ns is " << std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(list_[i]->timeout_)).count());
       list_[i]->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(list_[i]->timeout_)), [this, i]() {timerCallback(i);});
     }
 
