@@ -37,30 +37,12 @@ namespace cmd_vel_mux
 CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", options.allow_undeclared_parameters(true).automatically_declare_parameters_from_overrides(true)), allowed_(VACANT)
 {
   std::vector<std::string> names;
-  if (!get_parameter("subscribers.name", names))
+  if (!get_parameter("subscribers.names", names))
   {
     RCLCPP_WARN(get_logger(), "No subscribers configured!");
   }
 
-  std::vector<std::string> topics;
-  get_parameter("subscribers.topic", topics);
-
-  std::vector<double> timeouts;
-  get_parameter("subscribers.timeout", timeouts);
-
-  std::vector<int64_t> priorities;
-  get_parameter("subscribers.priority", priorities);
-
-  std::vector<std::string> short_descs;
-  get_parameter("subscribers.short_desc", short_descs);
-
-  if (names.size() != topics.size() || names.size() != timeouts.size() ||
-      names.size() != priorities.size() || names.size() != short_descs.size())
-  {
-    throw std::runtime_error("Number of names, topics, timeouts, priorities, and short_descs must be the same");
-  }
-
-  configureFromParameters(names, topics, timeouts, priorities, short_descs);
+  configureFromParameters(names);
 
   param_cb_ =
     add_on_set_parameters_callback(std::bind(&CmdVelMux::parameterUpdate, this,
@@ -79,7 +61,7 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
   RCLCPP_DEBUG(get_logger(), "CmdVelMux : successfully initialized");
 }
 
-void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, const std::vector<std::string> & topics, const std::vector<double> & timeouts, const std::vector<int64_t> & priorities, const std::vector<std::string> & short_descs)
+void CmdVelMux::configureFromParameters(const std::vector<std::string> & names)
 {
   std::vector<std::shared_ptr<CmdVelSub>> new_list(names.size());
   for (unsigned int i = 0; i < names.size(); i++)
@@ -89,6 +71,30 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     auto old_sub = std::find_if(list_.begin(), list_.end(),
                                 [&new_sub_name](const std::shared_ptr<CmdVelSub>& sub)
                                                 {return sub->name_ == new_sub_name;});
+
+    std::string topic;
+    double timeout;
+    int64_t priority;
+    std::string short_desc;
+    if (!get_parameter("subscribers." + names[i] + ".topic", topic))
+    {
+      RCLCPP_WARN(get_logger(), "Subscriber " + names[i] + " has no topic, not adding");
+      continue;
+    }
+    if (!get_parameter("subscribers." + names[i] + ".timeout", timeout))
+    {
+      RCLCPP_WARN(get_logger(), "Subscriber " + names[i] + " has no timeout, not adding");
+      continue;
+    }
+    if (!get_parameter("subscribers." + names[i] + ".priority", priority))
+    {
+      RCLCPP_WARN(get_logger(), "Subscriber " + names[i] + " has no priority, not adding");
+      continue;
+    }
+    if (!get_parameter("subscribers." + names[i] + ".short_desc", short_desc))
+    {
+      short_desc = "No description";
+    }
     if (old_sub != list_.end())
     {
       // For names already in the subscribers list, retain current object so we don't re-subscribe to the topic
@@ -104,10 +110,10 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     double new_timeout;
     std::string new_topic;
     new_list[i]->name_ = names[i];
-    new_topic = topics[i];
-    new_timeout = timeouts[i];
-    new_list[i]->priority_ = priorities[i];
-    new_list[i]->short_desc_ = short_descs[i];
+    new_topic = topic;
+    new_timeout = timeout;
+    new_list[i]->priority_ = priority;
+    new_list[i]->short_desc_ = short_desc;
 
     if (new_topic != new_list[i]->topic_)
     {
@@ -231,90 +237,21 @@ void CmdVelMux::timerCallback(unsigned int idx)
 rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
   const std::vector<rclcpp::Parameter> & parameters)
 {
+  std::vector<std::string> names;
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
 
-  std::vector<std::string> names;
-  std::vector<std::string> topics;
-  std::vector<double> timeouts;
-  std::vector<int64_t> priorities;
-  std::vector<std::string> short_descs;
-
   for (const rclcpp::Parameter & parameter : parameters)
   {
-    if (parameter.get_name() == "subscribers.name")
+    if (parameter.get_name() == "subscribers.names")
     {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING_ARRAY)
-      {
-        result.successful = false;
-        result.reason = "subscribers.name must be a list of strings";
-        break;
-      }
-
-      get_parameter("subscribers.name", names);
+      get_parameter("subscribers.names", names);
     }
-    else if (parameter.get_name() == "subscribers.topic")
-    {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING_ARRAY)
-      {
-        result.successful = false;
-        result.reason = "subscribers.topic must be a list of strings";
-        break;
-      }
-
-      get_parameter("subscribers.topics", topics);
-    }
-    else if (parameter.get_name() == "subscribers.timeout")
-    {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY)
-      {
-        result.successful = false;
-        result.reason = "subscribers.timeout must be a list of doubles";
-        break;
-      }
-
-      get_parameter("subscribers.timeout", timeouts);
-    }
-    else if (parameter.get_name() == "subscribers.priority")
-    {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER_ARRAY)
-      {
-        result.successful = false;
-        result.reason = "subscribers.timeout must be a list of integers";
-        break;
-      }
-
-      get_parameter("subscribers.priority", priorities);
-    }
-    else if (parameter.get_name() == "subscribers.short_desc")
-    {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING_ARRAY)
-      {
-        result.successful = false;
-        result.reason = "subscribers.short_desc must be a list of strings";
-        break;
-      }
-
-      get_parameter("subscribers.short_desc", short_descs);
-    }
-    else
-    {
-      result.successful = false;
-      result.reason = "unknown parameter";
-      break;
-    }
-  }
-
-  if (names.size() != topics.size() || names.size() != timeouts.size() ||
-      names.size() != priorities.size() || names.size() != short_descs.size())
-  {
-    result.successful = false;
-    result.reason = "Number of names, topics, timeouts, priorities, and short_descs must be the same";
   }
 
   if (result.successful)
   {
-    configureFromParameters(names, topics, timeouts, priorities, short_descs);
+    configureFromParameters(names);
   }
 
   return result;
