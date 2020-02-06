@@ -36,28 +36,48 @@ namespace cmd_vel_mux
 
 CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", options.allow_undeclared_parameters(true).automatically_declare_parameters_from_overrides(true)), allowed_(VACANT)
 {
+  std::map<std::string, rclcpp::Parameter> subs_parameters;
   std::vector<std::string> names;
-  if (!get_parameter("subscribers.name", names))
+  std::map<std::string, std::string> topics;
+  std::map<std::string, double> timeouts;
+  std::map<std::string, int64_t> priorities;
+  std::map<std::string, std::string> short_descs;
+
+  if (!get_parameters("", subs_parameters) || subs_parameters.size() <= 1)
   {
     RCLCPP_WARN(get_logger(), "No subscribers configured!");
   }
-
-  std::vector<std::string> topics;
-  get_parameter("subscribers.topic", topics);
-
-  std::vector<double> timeouts;
-  get_parameter("subscribers.timeout", timeouts);
-
-  std::vector<int64_t> priorities;
-  get_parameter("subscribers.priority", priorities);
-
-  std::vector<std::string> short_descs;
-  get_parameter("subscribers.short_desc", short_descs);
-
-  if (names.size() != topics.size() || names.size() != timeouts.size() ||
-      names.size() != priorities.size() || names.size() != short_descs.size())
+  else
   {
-    throw std::runtime_error("Number of names, topics, timeouts, priorities, and short_descs must be the same");
+    for(auto& x : subs_parameters)
+    {
+      std::string name = x.first;
+      rclcpp::Parameter parameter = x.second;
+      if (name.find("key_name") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+      {
+        std::string vector_id = parameter.as_string();
+        if (!get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]))
+        {
+          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no topic, not adding");
+          continue;
+        }
+        if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
+        {
+          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no timeout, not adding");
+          continue;
+        }
+        if (!get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]))
+        {
+          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no priority, not adding");
+          continue;
+        }
+        if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
+        {
+          short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".short_desc")-12))->second =  "No description";
+        }
+        names.push_back(vector_id);
+      }
+    }
   }
 
   configureFromParameters(names, topics, timeouts, priorities, short_descs);
@@ -79,7 +99,7 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
   RCLCPP_DEBUG(get_logger(), "CmdVelMux : successfully initialized");
 }
 
-void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, const std::vector<std::string> & topics, const std::vector<double> & timeouts, const std::vector<int64_t> & priorities, const std::vector<std::string> & short_descs)
+void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, const std::map<std::string, std::string> & topics, const std::map<std::string, double> & timeouts, const std::map<std::string, int64_t> & priorities, const std::map<std::string, std::string> & short_descs)
 {
   std::vector<std::shared_ptr<CmdVelSub>> new_list(names.size());
   for (unsigned int i = 0; i < names.size(); i++)
@@ -104,10 +124,10 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     double new_timeout;
     std::string new_topic;
     new_list[i]->name_ = names[i];
-    new_topic = topics[i];
-    new_timeout = timeouts[i];
-    new_list[i]->priority_ = priorities[i];
-    new_list[i]->short_desc_ = short_descs[i];
+    new_topic = topics.find(names[i])->second;
+    new_timeout = timeouts.find(names[i])->second;
+    new_list[i]->priority_ = priorities.find(names[i])->second;
+    new_list[i]->short_desc_ = short_descs.find(names[i])->second;
 
     if (new_topic != new_list[i]->topic_)
     {
@@ -234,68 +254,119 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
 
+  std::map<std::string, rclcpp::Parameter> subs_parameters;
   std::vector<std::string> names;
-  std::vector<std::string> topics;
-  std::vector<double> timeouts;
-  std::vector<int64_t> priorities;
-  std::vector<std::string> short_descs;
+  std::map<std::string, std::string> topics;
+  std::map<std::string, double> timeouts;
+  std::map<std::string, int64_t> priorities;
+  std::map<std::string, std::string> short_descs;
+
+  if (!get_parameters("", subs_parameters) || subs_parameters.size() <= 1)
+  {
+    RCLCPP_WARN(get_logger(), "No subscribers configured!");
+  }
+  else
+  {
+    for(auto& x : subs_parameters)
+    {
+      std::string name = x.first;
+      rclcpp::Parameter parameter = x.second;
+      if (name.find("key_name") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+      {
+        std::string vector_id = parameter.as_string();
+        if (!get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]))
+        {
+          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no topic, not adding");
+          continue;
+        }
+        if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
+        {
+          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no timeout, not adding");
+          continue;
+        }
+        if (!get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]))
+        {
+          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no priority, not adding");
+          continue;
+        }
+        if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
+        {
+          short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = "No description";
+        }
+        names.push_back(vector_id);
+      }
+    }
+  }
 
   for (const rclcpp::Parameter & parameter : parameters)
   {
-    if (parameter.get_name() == "subscribers.name")
+    if (parameter.get_name().find("key_name") != std::string::npos)
     {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING_ARRAY)
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
       {
         result.successful = false;
-        result.reason = "subscribers.name must be a list of strings";
+        result.reason = parameter.get_name() +  " must be a string";
         break;
       }
-
-      get_parameter("subscribers.name", names);
+      std::string vector_id = parameter.as_string();
+      if (!get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]))
+      {
+        topics.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = "";
+      }
+      if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
+      {
+        timeouts.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = 0;
+      }
+      if (!get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]))
+      {
+        priorities.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = 0;
+      }
+      if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
+      {
+        short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = "No description";
+      }
+      RCLCPP_INFO_STREAM(get_logger(), "Created new subscriber with default values at key = " << vector_id);
+      names.push_back(vector_id);
     }
-    else if (parameter.get_name() == "subscribers.topic")
+    else if (parameter.get_name().find("topic") != std::string::npos)
     {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING_ARRAY)
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
       {
         result.successful = false;
-        result.reason = "subscribers.topic must be a list of strings";
+        result.reason = parameter.get_name() +  " must be a string";
         break;
       }
-
-      get_parameter("subscribers.topics", topics);
+      topics.find(parameter.get_name().substr(12, parameter.get_name().find(".topic")-12))->second = parameter.as_string();
     }
-    else if (parameter.get_name() == "subscribers.timeout")
+    else if (parameter.get_name().find("timeout") != std::string::npos)
     {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE_ARRAY)
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE)
       {
         result.successful = false;
-        result.reason = "subscribers.timeout must be a list of doubles";
+        result.reason = parameter.get_name() +  " must be a double";
         break;
       }
-
-      get_parameter("subscribers.timeout", timeouts);
+      timeouts.find(parameter.get_name().substr(12, parameter.get_name().find(".timeout")-12))->second = parameter.as_double();
     }
-    else if (parameter.get_name() == "subscribers.priority")
+    else if (parameter.get_name().find("priority") != std::string::npos)
     {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER_ARRAY)
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER)
       {
         result.successful = false;
-        result.reason = "subscribers.timeout must be a list of integers";
+        result.reason = parameter.get_name() +  " must be a integer";
         break;
       }
-
-      get_parameter("subscribers.priority", priorities);
+      priorities.find(parameter.get_name().substr(12, parameter.get_name().find(".priority")-12))->second = parameter.as_int();
     }
-    else if (parameter.get_name() == "subscribers.short_desc")
+    else if (parameter.get_name().find("short_desc") != std::string::npos)
     {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING_ARRAY)
+      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
       {
         result.successful = false;
-        result.reason = "subscribers.short_desc must be a list of strings";
+        result.reason = parameter.get_name() +  " must be a string";
         break;
       }
-
-      get_parameter("subscribers.short_desc", short_descs);
+      short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".short_desc")-12))->second = parameter.as_string();
     }
     else
     {
@@ -303,13 +374,6 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
       result.reason = "unknown parameter";
       break;
     }
-  }
-
-  if (names.size() != topics.size() || names.size() != timeouts.size() ||
-      names.size() != priorities.size() || names.size() != short_descs.size())
-  {
-    result.successful = false;
-    result.reason = "Number of names, topics, timeouts, priorities, and short_descs must be the same";
   }
 
   if (result.successful)
