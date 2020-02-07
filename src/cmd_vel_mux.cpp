@@ -53,14 +53,10 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
     {
       std::string name = x.first;
       rclcpp::Parameter parameter = x.second;
-      if (name.find("key_name") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+      if (name.find(".topic") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
       {
-        std::string vector_id = parameter.as_string();
-        if (!get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]))
-        {
-          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no topic, not adding");
-          continue;
-        }
+        std::string vector_id = name.substr(12, name.find(".topic")-12);
+        topics[vector_id] = parameter.as_string();
         if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
         {
           RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no timeout, not adding");
@@ -73,7 +69,7 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
         }
         if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
         {
-          short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".short_desc")-12))->second =  "No description";
+          short_descs[vector_id] =  "No description";
         }
         names.push_back(vector_id);
       }
@@ -123,11 +119,13 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     // Fill attributes with a YAML node content
     double new_timeout;
     std::string new_topic;
+
     new_list[i]->name_ = names[i];
     new_topic = topics.find(names[i])->second;
     new_timeout = timeouts.find(names[i])->second;
     new_list[i]->priority_ = priorities.find(names[i])->second;
     new_list[i]->short_desc_ = short_descs.find(names[i])->second;
+
 
     if (new_topic != new_list[i]->topic_)
     {
@@ -271,9 +269,9 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
     {
       std::string name = x.first;
       rclcpp::Parameter parameter = x.second;
-      if (name.find("key_name") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+      if (name.find(".topic") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
       {
-        std::string vector_id = parameter.as_string();
+        std::string vector_id = name.substr(12, name.find(".topic")-12);
         if (!get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]))
         {
           RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no topic, not adding");
@@ -291,7 +289,7 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
         }
         if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
         {
-          short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = "No description";
+          short_descs.find(vector_id)->second = "No description";
         }
         names.push_back(vector_id);
       }
@@ -300,7 +298,7 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
 
   for (const rclcpp::Parameter & parameter : parameters)
   {
-    if (parameter.get_name().find("key_name") != std::string::npos)
+    if (parameter.get_name().find(".topic") != std::string::npos)
     {
       if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
       {
@@ -308,37 +306,24 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
         result.reason = parameter.get_name() +  " must be a string";
         break;
       }
-      std::string vector_id = parameter.as_string();
-      if (!get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]))
-      {
-        topics.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = "";
-      }
+      std::string vector_id = parameter.get_name().substr(12, parameter.get_name().find(".topic")-12);
+      topics[vector_id] = parameter.as_string();
       if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
       {
-        timeouts.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = 0;
+        timeouts[vector_id] = 1;
       }
       if (!get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]))
       {
-        priorities.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = 0;
+        priorities[vector_id] = 0;
       }
       if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
       {
-        short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".key_name")-12))->second = "No description";
+        short_descs[vector_id] = "No description";
       }
-      RCLCPP_INFO_STREAM(get_logger(), "Created new subscriber with default values at key = " << vector_id);
+      RCLCPP_INFO_STREAM(get_logger(), "Created new subscriber with default values (priority = 0, timeout = 1) at key = " << vector_id);
       names.push_back(vector_id);
     }
-    else if (parameter.get_name().find("topic") != std::string::npos)
-    {
-      if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
-      {
-        result.successful = false;
-        result.reason = parameter.get_name() +  " must be a string";
-        break;
-      }
-      topics.find(parameter.get_name().substr(12, parameter.get_name().find(".topic")-12))->second = parameter.as_string();
-    }
-    else if (parameter.get_name().find("timeout") != std::string::npos)
+    else if (parameter.get_name().find(".timeout") != std::string::npos)
     {
       if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE)
       {
@@ -346,9 +331,17 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
         result.reason = parameter.get_name() +  " must be a double";
         break;
       }
-      timeouts.find(parameter.get_name().substr(12, parameter.get_name().find(".timeout")-12))->second = parameter.as_double();
+      if (timeouts.find(parameter.get_name().substr(12, parameter.get_name().find(".timeout")-12)) != timeouts.end())
+      {
+        timeouts.find(parameter.get_name().substr(12, parameter.get_name().find(".timeout")-12))->second = parameter.as_double();
+      }
+      std::string vector_id = parameter.get_name().substr(12, parameter.get_name().find(".timeout")-12);
+      if (!get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]))
+      {
+        priorities[vector_id] = 0;
+      }
     }
-    else if (parameter.get_name().find("priority") != std::string::npos)
+    else if (parameter.get_name().find(".priority") != std::string::npos)
     {
       if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER)
       {
@@ -356,9 +349,17 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
         result.reason = parameter.get_name() +  " must be a integer";
         break;
       }
-      priorities.find(parameter.get_name().substr(12, parameter.get_name().find(".priority")-12))->second = parameter.as_int();
+      if (priorities.find(parameter.get_name().substr(12, parameter.get_name().find(".priority")-12)) != priorities.end())
+      {
+        priorities.find(parameter.get_name().substr(12, parameter.get_name().find(".priority")-12))->second = parameter.as_int();
+      }
+      std::string vector_id = parameter.get_name().substr(12, parameter.get_name().find(".priority")-12);
+      if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
+      {
+        timeouts[vector_id] = 1;
+      }
     }
-    else if (parameter.get_name().find("short_desc") != std::string::npos)
+    else if (parameter.get_name().find(".short_desc") != std::string::npos)
     {
       if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
       {
@@ -366,7 +367,10 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
         result.reason = parameter.get_name() +  " must be a string";
         break;
       }
-      short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".short_desc")-12))->second = parameter.as_string();
+      if (short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".short_desc")-12)) != short_descs.end())
+      {
+        short_descs.find(parameter.get_name().substr(12, parameter.get_name().find(".short_desc")-12))->second = parameter.as_string();
+      }
     }
     else
     {
