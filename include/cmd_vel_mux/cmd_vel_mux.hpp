@@ -59,10 +59,14 @@ private:
   unsigned int allowed_;
 
   void commonTimerCallback();
-  void timerCallback(unsigned int idx);
-  void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, unsigned int idx);
+  void timerCallback(std::string name);
+  void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string name);
 
+<<<<<<< HEAD
   void configureFromParameters(const std::vector<std::string> & names);
+=======
+  void configureFromParameters(const std::vector<std::string> & names, const std::map<std::string, std::string> & topics, const std::map<std::string, double> & timeouts, const std::map<std::string, int64_t> & priorities, const std::map<std::string, std::string> & short_descs);
+>>>>>>> old_state
   rcl_interfaces::msg::SetParametersResult parameterUpdate(
     const std::vector<rclcpp::Parameter> & parameters);
 
@@ -85,6 +89,7 @@ private:
   };
 
   std::vector<std::shared_ptr<CmdVelSub>> list_;
+  std::vector<std::string> parameters_names;
 };
 
 } // namespace cmd_vel_mux
