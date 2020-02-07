@@ -15,7 +15,6 @@
 cmd_vel_mux:
   ros__parameters:
     subscribers:
-        names: ["default_input", "navigation_stack", "navigation_stack_controller", "remote_control", "web_application", "keyboard_operation"]
         default_input:
           topic:       "input/default"
           timeout:     0.1
