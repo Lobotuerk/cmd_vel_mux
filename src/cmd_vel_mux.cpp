@@ -114,30 +114,6 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     auto old_sub = std::find_if(list_.begin(), list_.end(),
                                 [&new_sub_name](const std::shared_ptr<CmdVelSub>& sub)
                                                 {return sub->name_ == new_sub_name;});
-
-    std::string topic;
-    double timeout;
-    int64_t priority;
-    std::string short_desc;
-    if (!get_parameter("subscribers." + names[i] + ".topic", topic))
-    {
-      RCLCPP_WARN(get_logger(), "Subscriber " + names[i] + " has no topic, not adding");
-      continue;
-    }
-    if (!get_parameter("subscribers." + names[i] + ".timeout", timeout))
-    {
-      RCLCPP_WARN(get_logger(), "Subscriber " + names[i] + " has no timeout, not adding");
-      continue;
-    }
-    if (!get_parameter("subscribers." + names[i] + ".priority", priority))
-    {
-      RCLCPP_WARN(get_logger(), "Subscriber " + names[i] + " has no priority, not adding");
-      continue;
-    }
-    if (!get_parameter("subscribers." + names[i] + ".short_desc", short_desc))
-    {
-      short_desc = "No description";
-    }
     if (old_sub != list_.end())
     {
       // For names already in the subscribers list, retain current object so we don't re-subscribe to the topic
@@ -295,7 +271,6 @@ void CmdVelMux::timerCallback(std::string name)
 rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
   const std::vector<rclcpp::Parameter> & parameters)
 {
-  std::vector<std::string> names;
   rcl_interfaces::msg::SetParametersResult result;
   result.successful = true;
 

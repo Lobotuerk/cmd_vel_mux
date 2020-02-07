@@ -63,10 +63,14 @@ private:
   void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string name);
 
 <<<<<<< HEAD
+<<<<<<< HEAD
   void configureFromParameters(const std::vector<std::string> & names);
 =======
   void configureFromParameters(const std::vector<std::string> & names, const std::map<std::string, std::string> & topics, const std::map<std::string, double> & timeouts, const std::map<std::string, int64_t> & priorities, const std::map<std::string, std::string> & short_descs);
 >>>>>>> old_state
+=======
+  void configureFromParameters(const std::vector<std::string> & names, const std::map<std::string, std::string> & topics, const std::map<std::string, double> & timeouts, const std::map<std::string, int64_t> & priorities, const std::map<std::string, std::string> & short_descs);
+>>>>>>> e304fce8c8594224a366faed01a9263e5191c1e2
   rcl_interfaces::msg::SetParametersResult parameterUpdate(
     const std::vector<rclcpp::Parameter> & parameters);
 
