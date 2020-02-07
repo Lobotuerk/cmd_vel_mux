@@ -37,7 +37,6 @@ namespace cmd_vel_mux
 CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", options.allow_undeclared_parameters(true).automatically_declare_parameters_from_overrides(true)), allowed_(VACANT)
 {
   std::map<std::string, rclcpp::Parameter> subs_parameters;
-  std::vector<std::string> names;
   std::map<std::string, std::string> topics;
   std::map<std::string, double> timeouts;
   std::map<std::string, int64_t> priorities;
@@ -56,7 +55,6 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
       if (name.find(".topic") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
       {
         std::string vector_id = name.substr(12, name.find(".topic")-12);
-        topics[vector_id] = parameter.as_string();
         if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
         {
           RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no timeout, not adding");
@@ -67,16 +65,27 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
           RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no priority, not adding");
           continue;
         }
+        bool priority_dup_flag = false;
+        for (auto it = priorities.begin(); it != priorities.end(); ++it)
+        {
+          if (it->second == priorities[vector_id] && it != priorities.find(vector_id)) priority_dup_flag = true;
+        }
+        if (priority_dup_flag)
+        {
+          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has the same priority as another subscriber, not adding");
+          continue;
+        }
         if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
         {
           short_descs[vector_id] =  "No description";
         }
-        names.push_back(vector_id);
+        topics[vector_id] = parameter.as_string();
+        parameters_names.push_back(vector_id);
       }
     }
   }
 
-  configureFromParameters(names, topics, timeouts, priorities, short_descs);
+  configureFromParameters(parameters_names, topics, timeouts, priorities, short_descs);
 
   param_cb_ =
     add_on_set_parameters_callback(std::bind(&CmdVelMux::parameterUpdate, this,
@@ -126,7 +135,6 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     new_list[i]->priority_ = priorities.find(names[i])->second;
     new_list[i]->short_desc_ = short_descs.find(names[i])->second;
 
-
     if (new_topic != new_list[i]->topic_)
     {
       // Shutdown the topic if the name has changed so it gets recreated on configuration reload
@@ -151,7 +159,7 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
   {
     if (!list_[i]->sub_)
     {
-      list_[i]->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(list_[i]->topic_, 10, [this, i](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, i);});
+      list_[i]->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(list_[i]->topic_, 10, [this, i](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, list_[i]->name_);});
       RCLCPP_DEBUG(get_logger(), "CmdVelMux : subscribed to '%s' on topic '%s'. pr: %d, to: %.2f",
                    list_[i]->name_.c_str(), list_[i]->topic_.c_str(),
                    list_[i]->priority_, list_[i]->timeout_);
@@ -164,7 +172,7 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
     if (!list_[i]->timer_)
     {
       // Create (stopped by now) a one-shot timer for every subscriber, if it doesn't exist yet
-      list_[i]->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(list_[i]->timeout_)), [this, i]() {timerCallback(i);});
+      list_[i]->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(list_[i]->timeout_)), [this, i]() {timerCallback(list_[i]->name_);});
     }
 
     if (list_[i]->timeout_ > longest_timeout)
@@ -184,8 +192,15 @@ void CmdVelMux::configureFromParameters(const std::vector<std::string> & names, 
   RCLCPP_INFO(get_logger(), "CmdVelMux : (re)configured");
 }
 
-void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, unsigned int idx)
+void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string name)
 {
+  unsigned int idx = VACANT;
+  for (unsigned int i = 0; i < list_.size(); i++)
+  {
+    if (list_[i]->name_ == name) idx = i;
+  }
+  if (idx == VACANT) return;
+
   // Reset general timer
   common_timer_->reset();
 
@@ -232,8 +247,15 @@ void CmdVelMux::commonTimerCallback()
   }
 }
 
-void CmdVelMux::timerCallback(unsigned int idx)
+void CmdVelMux::timerCallback(std::string name)
 {
+  unsigned int idx = VACANT;
+  for (unsigned int i = 0; i < list_.size(); i++)
+  {
+    if (list_[i]->name_ == name) idx = i;
+  }
+  if (idx == VACANT) return;
+
   if (allowed_ == idx)
   {
     // No cmd_vel messages timeout happened to currently active source, so...
@@ -253,7 +275,6 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
   result.successful = true;
 
   std::map<std::string, rclcpp::Parameter> subs_parameters;
-  std::vector<std::string> names;
   std::map<std::string, std::string> topics;
   std::map<std::string, double> timeouts;
   std::map<std::string, int64_t> priorities;
@@ -272,33 +293,57 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
       if (name.find(".topic") != std::string::npos && parameter.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
       {
         std::string vector_id = name.substr(12, name.find(".topic")-12);
-        if (!get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]))
+        get_parameter("subscribers." + vector_id + ".topic", topics[vector_id]);
+        get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]);
+        get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]);
+        get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]);
+        if (std::find(parameters_names.begin(), parameters_names.end(), vector_id) == parameters_names.end())
         {
-          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no topic, not adding");
-          continue;
+          parameters_names.push_back(vector_id);
         }
-        if (!get_parameter("subscribers." + vector_id + ".timeout", timeouts[vector_id]))
-        {
-          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no timeout, not adding");
-          continue;
-        }
-        if (!get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]))
-        {
-          RCLCPP_WARN(get_logger(), "Subscriber " + vector_id + " has no priority, not adding");
-          continue;
-        }
-        if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
-        {
-          short_descs.find(vector_id)->second = "No description";
-        }
-        names.push_back(vector_id);
       }
     }
   }
 
   for (const rclcpp::Parameter & parameter : parameters)
   {
-    if (parameter.get_name().find(".topic") != std::string::npos)
+    if (parameter.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
+    {
+      if (parameter.get_name().find(".topic") != std::string::npos)
+      {
+        std::string vector_id = parameter.get_name().substr(12, parameter.get_name().find(".topic")-12);
+        int index = -1;
+        for (unsigned int i = 0; i < parameters_names.size(); i++)
+        {
+          if (parameters_names[i] == vector_id)
+          {
+            index = i;
+            break;
+          }
+        }
+        if (index >= 0)
+        {
+          parameters_names.erase(parameters_names.begin() + index);
+          topics.erase(vector_id);
+          timeouts.erase(vector_id);
+          priorities.erase(vector_id);
+          short_descs.erase(vector_id);
+        }
+        else
+        {
+          result.successful = false;
+          result.reason = "Topic was not found to delete";
+          break;
+        }
+      }
+      else
+      {
+        result.successful = false;
+        result.reason = "To delete a subscriber, start with deleting the topic";
+        break;
+      }
+    }
+    else if (parameter.get_name().find(".topic") != std::string::npos)
     {
       if (parameter.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
       {
@@ -314,14 +359,25 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
       }
       if (!get_parameter("subscribers." + vector_id + ".priority", priorities[vector_id]))
       {
-        priorities[vector_id] = 0;
+        int test_priority = 0;
+        for (auto it = priorities.begin(); it != priorities.end(); ++it)
+        {
+          if (it->second == test_priority)
+          {
+            test_priority++;
+            it = priorities.begin();
+          }
+        }
+        priorities[vector_id] = test_priority;
       }
       if (!get_parameter("subscribers." + vector_id + ".short_desc", short_descs[vector_id]))
       {
         short_descs[vector_id] = "No description";
       }
-      RCLCPP_INFO_STREAM(get_logger(), "Created new subscriber with default values (priority = 0, timeout = 1) at key = " << vector_id);
-      names.push_back(vector_id);
+      if (std::find(parameters_names.begin(), parameters_names.end(), vector_id) == parameters_names.end())
+      {
+        parameters_names.push_back(vector_id);
+      }
     }
     else if (parameter.get_name().find(".timeout") != std::string::npos)
     {
@@ -347,6 +403,17 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
       {
         result.successful = false;
         result.reason = parameter.get_name() +  " must be a integer";
+        break;
+      }
+      bool priority_dup_flag = false;
+      for (auto it = priorities.begin(); it != priorities.end(); ++it)
+      {
+        if (it->second == parameter.as_int()) priority_dup_flag = true;
+      }
+      if (priority_dup_flag)
+      {
+        result.successful = false;
+        result.reason = "there is already a subscriber with priority " + parameter.as_int();
         break;
       }
       if (priorities.find(parameter.get_name().substr(12, parameter.get_name().find(".priority")-12)) != priorities.end())
@@ -380,9 +447,19 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
     }
   }
 
+  for (unsigned int i = 0; i < parameters_names.size(); i++)
+  {
+    if(priorities.find(parameters_names[i]) == priorities.end() || topics.find(parameters_names[i]) == topics.end() || timeouts.find(parameters_names[i]) == timeouts.end())
+    {
+      result.successful = false;
+      result.reason = "something went wrong while adding the parameters";
+      break;
+    }
+  }
+
   if (result.successful)
   {
-    configureFromParameters(names, topics, timeouts, priorities, short_descs);
+    configureFromParameters(parameters_names, topics, timeouts, priorities, short_descs);
   }
 
   return result;
