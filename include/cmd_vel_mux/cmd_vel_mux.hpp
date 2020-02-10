@@ -37,6 +37,15 @@ namespace cmd_vel_mux
  ** CmdVelMux
  *****************************************************************************/
 
+ struct ParameterValues
+ {
+   ParameterValues() : topic_(""), timeout_(-1), priority_(-1), short_desc_("Default Description") {}
+   std::string topic_;
+   double timeout_;
+   int64_t priority_;
+   std::string short_desc_;
+ };
+
 class CmdVelMux final : public rclcpp::Node
 {
 public:
@@ -48,7 +57,7 @@ public:
   CmdVelMux & operator=(const CmdVelMux & c) = delete;
 
 private:
-  static const unsigned int VACANT       = 666666;  /**< ID for "nobody" active input; anything big is ok */
+  static const std::string VACANT;  /**< ID for "nobody" active input;*/
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr output_topic_pub_;   /**< Multiplexed command velocity topic */
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr active_subscriber_pub_;  /**< Currently allowed cmd_vel subscriber */
@@ -56,23 +65,15 @@ private:
   double common_timer_period_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_;
 
-  unsigned int allowed_;
+  std::string allowed_;
 
   void commonTimerCallback();
-  void timerCallback(std::string name);
-  void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string name);
+  void timerCallback(std::string key);
+  void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string key);
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-  void configureFromParameters(const std::vector<std::string> & names);
-=======
-  void configureFromParameters(const std::vector<std::string> & names, const std::map<std::string, std::string> & topics, const std::map<std::string, double> & timeouts, const std::map<std::string, int64_t> & priorities, const std::map<std::string, std::string> & short_descs);
->>>>>>> old_state
-=======
-  void configureFromParameters(const std::vector<std::string> & names, const std::map<std::string, std::string> & topics, const std::map<std::string, double> & timeouts, const std::map<std::string, int64_t> & priorities, const std::map<std::string, std::string> & short_descs);
->>>>>>> e304fce8c8594224a366faed01a9263e5191c1e2
+
   rcl_interfaces::msg::SetParametersResult parameterUpdate(
-    const std::vector<rclcpp::Parameter> & parameters);
+    const std::vector<rclcpp::Parameter> & update_parameters);
 
   /*********************
    ** Private Classes
@@ -92,8 +93,11 @@ private:
     std::string            short_desc_;   /**< Short description (optional) */
   };
 
-  std::vector<std::shared_ptr<CmdVelSub>> list_;
-  std::vector<std::string> parameters_names;
+  void configureFromParameters(const std::map<std::string, ParameterValues> & parameters);
+  std::map<std::string, ParameterValues> parseFromParametersMap(const std::map<std::string, rclcpp::Parameter> & parameters);
+
+  std::map<std::string, std::shared_ptr<CmdVelSub>> map_;
+  std::map<std::string, bool> used_priorities_;
 };
 
 } // namespace cmd_vel_mux
