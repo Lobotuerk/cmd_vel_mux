@@ -39,11 +39,10 @@ namespace cmd_vel_mux
 
  struct ParameterValues
  {
-   ParameterValues() : topic_(""), timeout_(-1), priority_(-1), short_desc_("Default Description") {}
-   std::string topic_;
-   double timeout_;
-   int64_t priority_;
-   std::string short_desc_;
+   std::string topic;
+   double timeout{-1.0};
+   int64_t priority{-1};
+   std::string short_desc;
  };
 
 class CmdVelMux final : public rclcpp::Node
@@ -71,7 +70,6 @@ private:
   void timerCallback(std::string key);
   void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string key);
 
-
   rcl_interfaces::msg::SetParametersResult parameterUpdate(
     const std::vector<rclcpp::Parameter> & update_parameters);
 
@@ -89,15 +87,17 @@ private:
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr        sub_;         /**< The subscriber itself */
     rclcpp::TimerBase::SharedPtr             timer_;        /**< No incoming messages timeout */
     double                 timeout_;      /**< Timer's timeout, in seconds  */
-    unsigned int           priority_;     /**< UNIQUE integer from 0 (lowest priority) to MAX_INT */
+    uint32_t               priority_;     /**< UNIQUE integer from 0 (lowest priority) to MAX_INT */
     std::string            short_desc_;   /**< Short description (optional) */
   };
 
+  bool addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & input_variable, const rclcpp::Parameter & parameter_value);
+  bool parametersAreValid(const std::map<std::string, ParameterValues> & parameters);
   void configureFromParameters(const std::map<std::string, ParameterValues> & parameters);
   std::map<std::string, ParameterValues> parseFromParametersMap(const std::map<std::string, rclcpp::Parameter> & parameters);
 
   std::map<std::string, std::shared_ptr<CmdVelSub>> map_;
-  std::map<std::string, bool> used_priorities_;
+  std::set<unsigned int> used_priorities_;
 };
 
 } // namespace cmd_vel_mux
