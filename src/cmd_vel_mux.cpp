@@ -219,6 +219,28 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
 
 bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & input_variable, const rclcpp::Parameter & parameter_value)
 {
+  if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
+  {
+    if (parsed_parameters.count(input_name) > 0)
+    {
+      parsed_parameters.erase(input_name);
+    }
+    if (map_.count(input_name) > 0)
+    {
+      map_.erase(input_name);
+    }
+    if (allowed_ == input_name)
+    {
+      // Take down the deleted subscriber if it was the one being used as source
+      allowed_ = VACANT;
+
+      // ...notify the world that nobody is publishing on cmd_vel; its vacant
+      auto active_msg = std::make_unique<std_msgs::msg::String>();
+      active_msg->data = "idle";
+      active_subscriber_pub_->publish(std::move(active_msg));
+    }
+    return true;
+  }
   if (parsed_parameters.count(input_name) == 0)
   {
     parsed_parameters.emplace(std::make_pair(input_name, ParameterValues()));

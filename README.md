@@ -24,4 +24,10 @@ Subscribers use a dictionary way of being set up, with `name` being the key:
 
 ## Changing values
 The dictionary translates to parameters in the form of `subscribers.` + name + `topic/timeout/priority/short_desc`.
-It can be changed on the fly using `ros2 param set` command, followed with the parameter in the form mentioned above and the value
+It can be changed on the fly using `ros2 param set` command, followed with the parameter in the form mentioned above and the value.
+
+## Adding subscriber
+To add a new subscriber, call the service `/cmd_vel_mux/set_parameters_atomically` with a `rcl_interfaces/srv/SetParametersAtomically` message with a parameters value equal to an array of 4 `rcl_interfaces/msg/Parameter` messages, containing the new subscriber topic,timeout,priority and short_desc. All 4 need to be present for a new subscriber to be added.
+
+## Deleting subscriber
+To delete a subscriber, call the service `/cmd_vel_mux/set_parameters_atomically` with a `rcl_interfaces/srv/SetParametersAtomically` message with a parameters value equal to an array of 4 `rcl_interfaces/msg/Parameter` messages, containing the new subscriber topic,timeout,priority and short_desc with the `type` key inside the `rcl/parameter/ParameterValue` being set to 0 (PARAMETER_NOT_SET)/
