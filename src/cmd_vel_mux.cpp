@@ -33,8 +33,8 @@ namespace cmd_vel_mux
 
 namespace
 {
-std::vector<std::string> stringSplit(const std::string &str,
-                                     const std::string &splitter)
+std::vector<std::string> stringSplit(const std::string & str,
+                                     const std::string & splitter)
 {
   std::vector<std::string> ret;
   size_t next = 0;
@@ -119,12 +119,12 @@ bool CmdVelMux::parametersAreValid(const std::map<std::string, ParameterValues> 
       RCLCPP_WARN(get_logger(), "Missing timeout for '%s', ignoring", parameter.first.c_str());
       return false;
     }
-    else if (parameter.second.priority < 0)
+    if (parameter.second.priority < 0)
     {
       RCLCPP_WARN(get_logger(), "Missing priority for '%s', ignoring", parameter.first.c_str());
       return false;
     }
-    else if (parameter.second.short_desc.empty())
+    if (parameter.second.short_desc.empty())
     {
       RCLCPP_WARN(get_logger(), "Empty short_desc for '%s', ignoring", parameter.first.c_str());
       return false;
@@ -140,8 +140,8 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
 
   for (const std::pair<std::string, ParameterValues> & parameter : parameters)
   {
-    const std::string &key = parameter.first;
-    const ParameterValues &parameter_values = parameter.second;
+    const std::string & key = parameter.first;
+    const ParameterValues & parameter_values = parameter.second;
     // Check if parameter subscriber has all its necessary values
     if (map_.count(key) != 0)
     {
@@ -175,34 +175,45 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
     }
   }
 
+  // Take down the deleted subscriber if it was the one being used as source
+  if (allowed_ != VACANT && new_map.count(allowed_) == 0)
+  {
+    allowed_ = VACANT;
+    // ...notify the world that nobody is publishing on cmd_vel; its vacant
+    auto active_msg = std::make_unique<std_msgs::msg::String>();
+    active_msg->data = "idle";
+    active_subscriber_pub_->publish(std::move(active_msg));
+  }
+
   map_ = new_map;
 
   // (Re)create subscribers whose topic is invalid: new ones and those with changed names
   double longest_timeout = 0.0;
   for (std::pair<const std::string, std::shared_ptr<CmdVelSub>> & m : map_)
   {
-    const std::string &key = m.first;
-    if (!m.second->sub_)
+    const std::string & key = m.first;
+    const std::shared_ptr<CmdVelSub> & values = m.second;
+    if (!values->sub_)
     {
-      m.second->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(m.second->topic_, 10, [this, key](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, key);});
+      values->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(values->topic_, 10, [this, key](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, key);});
       RCLCPP_DEBUG(get_logger(), "CmdVelMux : subscribed to '%s' on topic '%s'. pr: %d, to: %.2f",
-                   m.second->name_.c_str(), m.second->topic_.c_str(),
-                   m.second->priority_, m.second->timeout_);
+                   values->name_.c_str(), values->topic_.c_str(),
+                   values->priority_, values->timeout_);
     }
     else
     {
-      RCLCPP_DEBUG(get_logger(), "CmdVelMux : no need to re-subscribe to input topic '%s'", m.second->topic_.c_str());
+      RCLCPP_DEBUG(get_logger(), "CmdVelMux : no need to re-subscribe to input topic '%s'", values->topic_.c_str());
     }
 
-    if (!m.second->timer_)
+    if (!values->timer_)
     {
       // Create (stopped by now) a one-shot timer for every subscriber, if it doesn't exist yet
-      m.second->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(m.second->timeout_)), [this, key]() {timerCallback(key);});
+      values->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(values->timeout_)), [this, key]() {timerCallback(key);});
     }
 
-    if (m.second->timeout_ > longest_timeout)
+    if (values->timeout_ > longest_timeout)
     {
-      longest_timeout = m.second->timeout_;
+      longest_timeout = values->timeout_;
     }
   }
 
@@ -224,20 +235,6 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
     if (parsed_parameters.count(input_name) > 0)
     {
       parsed_parameters.erase(input_name);
-    }
-    if (map_.count(input_name) > 0)
-    {
-      map_.erase(input_name);
-    }
-    if (allowed_ == input_name)
-    {
-      // Take down the deleted subscriber if it was the one being used as source
-      allowed_ = VACANT;
-
-      // ...notify the world that nobody is publishing on cmd_vel; its vacant
-      auto active_msg = std::make_unique<std_msgs::msg::String>();
-      active_msg->data = "idle";
-      active_subscriber_pub_->publish(std::move(active_msg));
     }
     return true;
   }
@@ -431,8 +428,8 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
       break;
     }
 
-    const std::string &input_name = splits[1];
-    const std::string &input_variable = splits[2];
+    const std::string & input_name = splits[1];
+    const std::string & input_variable = splits[2];
 
     if (!addInputToParameterMap(parameters, input_name, input_variable, parameter))
     {
