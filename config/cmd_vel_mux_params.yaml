@@ -10,7 +10,7 @@
 #   topic:          The topic that provides cmd_vel messages
 #   timeout:        Time in seconds without incoming messages to consider this topic inactive
 #   priority:       Priority: an UNIQUE unsigned integer from 0 (lowest) to MAX_INT
-#   short_desc:     Short description (optional)
+#   short_desc:     Short description
 
 cmd_vel_mux:
   ros__parameters:

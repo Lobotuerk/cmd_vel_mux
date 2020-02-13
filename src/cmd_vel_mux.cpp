@@ -33,8 +33,8 @@ namespace cmd_vel_mux
 
 namespace
 {
-std::vector<std::string> stringSplit(const std::string &str,
-                                     const std::string &splitter)
+std::vector<std::string> stringSplit(const std::string & str,
+                                     const std::string & splitter)
 {
   std::vector<std::string> ret;
   size_t next = 0;
@@ -74,6 +74,7 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
   }
   else
   {
+    used_priorities_.clear();
     std::map<std::string, ParameterValues> parsed_parameters = parseFromParametersMap(parameters);
     if (parsed_parameters.size() == 0)
     {
@@ -113,17 +114,17 @@ bool CmdVelMux::parametersAreValid(const std::map<std::string, ParameterValues> 
       RCLCPP_WARN(get_logger(), "Empty topic for '%s'", parameter.first.c_str());
       return false;
     }
-    else if (parameter.second.timeout < 0.0)
+    if (parameter.second.timeout < 0.0)
     {
       RCLCPP_WARN(get_logger(), "Missing timeout for '%s', ignoring", parameter.first.c_str());
       return false;
     }
-    else if (parameter.second.priority < 0)
+    if (parameter.second.priority < 0)
     {
       RCLCPP_WARN(get_logger(), "Missing priority for '%s', ignoring", parameter.first.c_str());
       return false;
     }
-    else if (parameter.second.short_desc.empty())
+    if (parameter.second.short_desc.empty())
     {
       RCLCPP_WARN(get_logger(), "Empty short_desc for '%s', ignoring", parameter.first.c_str());
       return false;
@@ -135,15 +136,14 @@ bool CmdVelMux::parametersAreValid(const std::map<std::string, ParameterValues> 
 
 void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterValues> & parameters)
 {
-  std::map<std::string, ParameterValues>::const_iterator parameter;
   std::map<std::string, std::shared_ptr<CmdVelSub>> new_map;
 
   for (const std::pair<std::string, ParameterValues> & parameter : parameters)
   {
-    std::string key = parameter.first;
-    ParameterValues parameter_values = parameter.second;
+    const std::string & key = parameter.first;
+    const ParameterValues & parameter_values = parameter.second;
     // Check if parameter subscriber has all its necessary values
-    if (map_.find(key) != map_.cend())
+    if (map_.count(key) != 0)
     {
       // For names already in the subscribers map, retain current object so we don't re-subscribe to the topic
       new_map[key] = map_[key];
@@ -155,28 +155,34 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
 
     // update existing or new object with the new configuration
 
-    double new_timeout;
-    std::string new_topic;
     new_map[key]->name_ = key;
-    new_topic = parameter_values.topic;
-    new_timeout = parameter_values.timeout;
     new_map[key]->priority_ = parameter_values.priority;
     new_map[key]->short_desc_ = parameter_values.short_desc;
 
-    if (new_topic != new_map[key]->topic_)
+    if (parameter_values.topic != new_map[key]->topic_)
     {
       // Shutdown the topic if the name has changed so it gets recreated on configuration reload
       // In the case of new subscribers, topic is empty and shutdown has just no effect
-      new_map[key]->topic_ = new_topic;
+      new_map[key]->topic_ = parameter_values.topic;
       new_map[key]->sub_ = nullptr;
     }
 
-    if (new_timeout != new_map[key]->timeout_)
+    if (parameter_values.timeout != new_map[key]->timeout_)
     {
       // Change timer period if the timeout changed
-      new_map[key]->timeout_ = new_timeout;
+      new_map[key]->timeout_ = parameter_values.timeout;
       new_map[key]->timer_ = nullptr;
     }
+  }
+
+  // Take down the deleted subscriber if it was the one being used as source
+  if (allowed_ != VACANT && new_map.count(allowed_) == 0)
+  {
+    allowed_ = VACANT;
+    // ...notify the world that nobody is publishing on cmd_vel; its vacant
+    auto active_msg = std::make_unique<std_msgs::msg::String>();
+    active_msg->data = "idle";
+    active_subscriber_pub_->publish(std::move(active_msg));
   }
 
   map_ = new_map;
@@ -185,28 +191,29 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
   double longest_timeout = 0.0;
   for (std::pair<const std::string, std::shared_ptr<CmdVelSub>> & m : map_)
   {
-    std::string key = m.first;
-    if (!m.second->sub_)
+    const std::string & key = m.first;
+    const std::shared_ptr<CmdVelSub> & values = m.second;
+    if (!values->sub_)
     {
-      m.second->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(m.second->topic_, 10, [this, key](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, key);});
+      values->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(values->topic_, 10, [this, key](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, key);});
       RCLCPP_DEBUG(get_logger(), "CmdVelMux : subscribed to '%s' on topic '%s'. pr: %d, to: %.2f",
-                   m.second->name_.c_str(), m.second->topic_.c_str(),
-                   m.second->priority_, m.second->timeout_);
+                   values->name_.c_str(), values->topic_.c_str(),
+                   values->priority_, values->timeout_);
     }
     else
     {
-      RCLCPP_DEBUG(get_logger(), "CmdVelMux : no need to re-subscribe to input topic '%s'", m.second->topic_.c_str());
+      RCLCPP_DEBUG(get_logger(), "CmdVelMux : no need to re-subscribe to input topic '%s'", values->topic_.c_str());
     }
 
-    if (!m.second->timer_)
+    if (!values->timer_)
     {
       // Create (stopped by now) a one-shot timer for every subscriber, if it doesn't exist yet
-      m.second->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(m.second->timeout_)), [this, key]() {timerCallback(key);});
+      values->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(values->timeout_)), [this, key]() {timerCallback(key);});
     }
 
-    if (m.second->timeout_ > longest_timeout)
+    if (values->timeout_ > longest_timeout)
     {
-      longest_timeout = m.second->timeout_;
+      longest_timeout = values->timeout_;
     }
   }
 
@@ -223,6 +230,14 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
 
 bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & input_variable, const rclcpp::Parameter & parameter_value)
 {
+  if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
+  {
+    if (parsed_parameters.count(input_name) > 0)
+    {
+      parsed_parameters.erase(input_name);
+    }
+    return true;
+  }
   if (parsed_parameters.count(input_name) == 0)
   {
     parsed_parameters.emplace(std::make_pair(input_name, ParameterValues()));
@@ -265,6 +280,7 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
       RCLCPP_WARN(get_logger(), "Cannot have duplicate priorities, ignoring");
       return false;
     }
+    used_priorities_.insert(priority);
     parsed_parameters[input_name].priority = priority;
   }
   else if (input_variable == "short_desc")
@@ -311,7 +327,7 @@ std::map<std::string, ParameterValues> CmdVelMux::parseFromParametersMap(const s
 void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string key)
 {
   // if subscriber was deleted or the one being called right now just ignore
-  if (map_.find(key) == map_.cend())
+  if (map_.count(key) == 0)
   {
     return;
   }
@@ -390,6 +406,7 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
     return result;
   }
 
+  used_priorities_.clear();
   std::map<std::string, ParameterValues> parameters = parseFromParametersMap(old_parameters);
 
   // And then merge them
@@ -411,8 +428,8 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
       break;
     }
 
-    std::string input_name = splits[1];
-    std::string input_variable = splits[2];
+    const std::string & input_name = splits[1];
+    const std::string & input_variable = splits[2];
 
     if (!addInputToParameterMap(parameters, input_name, input_variable, parameter))
     {
