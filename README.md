@@ -28,16 +28,18 @@ It can be changed on the fly using `ros2 param set` command, followed with the p
 
 ## Adding subscriber
 To add a new subscriber, call the service `/cmd_vel_mux/set_parameters_atomically` with a `rcl_interfaces/srv/SetParametersAtomically` message with a parameters value equal to an array of 4 `rcl_interfaces/msg/Parameter` messages, containing the new subscriber topic,timeout,priority and short_desc. All 4 need to be present for a new subscriber to be added.
+
 **Ex.1** for testing:
 ```
 'ros2 service call /cmd_vel_mux/set_parameters_atomically rcl_interfaces/srv/SetParametersAtomically "{parameters: [{name : subscribers.new_input.topic, value: {type: 4, string_value: /input/new_input}}, {name : subscribers.new_input.priority, value: {type: 2, integer_value: 20}}, {name : subscribers.new_input.timeout, value: {type: 3, double_value: 0.2}}, {name : subscribers.new_input.short_desc, value: {type: 4, string_value: 'test input'}}]}"
 ```
-sets new_input subscriber at '/input/new_input'
+sets *new_input* subscriber listening at topic `/input/new_input`
 
 ## Deleting subscriber
 To delete a subscriber, call the service `/cmd_vel_mux/set_parameters_atomically` with a `rcl_interfaces/srv/SetParametersAtomically` message with a parameters value equal to an array of 4 `rcl_interfaces/msg/Parameter` messages, containing the new subscriber topic,timeout,priority and short_desc with the `type` key inside the `rcl/parameter/ParameterValue` being set to 0 (PARAMETER_NOT_SET)
+
 **Ex.2** for testing:
 ```
 ros2 service call /cmd_vel_mux/set_parameters_atomically rcl_interfaces/srv/SetParametersAtomically "{parameters: [{name : subscribers.new_input.topic, value: {type: 0}}, {name : subscribers.new_input.priority, value: {type: 0}}, {name : subscribers.new_input.timeout, value: {type: 0}}, {name : subscribers.new_input.short_desc, value: {type: 0}}]}"
 ```
- deletes the new_input subscriber added at ex.1
+ deletes *new_input* subscriber added at ex.1
