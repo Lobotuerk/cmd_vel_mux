@@ -25,6 +25,7 @@
 #include <rcl_interfaces/msg/set_parameters_result.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp_components/register_node_macro.hpp>
+#include <rcpputils/split.hpp>
 #include <std_msgs/msg/string.hpp>
 
 #include "cmd_vel_mux/cmd_vel_mux.hpp"
@@ -35,34 +36,6 @@
 
 namespace cmd_vel_mux
 {
-
-namespace
-{
-std::vector<std::string> stringSplit(const std::string & str,
-                                     const std::string & splitter)
-{
-  std::vector<std::string> ret;
-  size_t next = 0;
-  size_t current = next;
-
-  if (splitter.empty())
-  {
-    // If the splitter is blank, just return the original
-    ret.push_back(str);
-    return ret;
-  }
-
-  while (next != std::string::npos)
-  {
-    next = str.find(splitter, current);
-    ret.push_back(str.substr(current, next - current));
-    current = next + splitter.length();
-  }
-
-  return ret;
-}
-
-}  // namespace
 
 /*****************************************************************************
  ** Implementation
@@ -218,7 +191,7 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
   RCLCPP_INFO(get_logger(), "CmdVelMux : (re)configured");
 }
 
-bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & input_variable, const rclcpp::Parameter & parameter_value)
+bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & parameter_name, const rclcpp::Parameter & parameter_value)
 {
   if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
   {
@@ -233,7 +206,7 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
     parsed_parameters.emplace(std::make_pair(input_name, ParameterValues()));
   }
 
-  if (input_variable == "topic")
+  if (parameter_name == "topic")
   {
     if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
     {
@@ -242,7 +215,7 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
     }
     parsed_parameters[input_name].topic = parameter_value.as_string();
   }
-  else if (input_variable == "timeout")
+  else if (parameter_name == "timeout")
   {
     if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE)
     {
@@ -251,7 +224,7 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
     }
     parsed_parameters[input_name].timeout = parameter_value.as_double();
   }
-  else if (input_variable == "priority")
+  else if (parameter_name == "priority")
   {
     if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER)
     {
@@ -273,7 +246,7 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
     used_priorities_.insert(priority);
     parsed_parameters[input_name].priority = priority;
   }
-  else if (input_variable == "short_desc")
+  else if (parameter_name == "short_desc")
   {
     if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
     {
@@ -284,7 +257,7 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
   }
   else
   {
-    RCLCPP_WARN(get_logger(), "Invalid input variable '%s'; ignored", input_variable.c_str());
+    RCLCPP_WARN(get_logger(), "Invalid input variable '%s'; ignored", parameter_name.c_str());
     return false;
   }
 
@@ -299,14 +272,17 @@ std::map<std::string, ParameterValues> CmdVelMux::parseFromParametersMap(const s
   // Iterate over all parameters and parse their content
   for (const std::pair<std::string, rclcpp::Parameter> & parameter : parameters)
   {
-    std::vector<std::string> splits = stringSplit(parameter.first, ".");
+    std::vector<std::string> splits = rcpputils::split(parameter.first, '.');
     if (splits.size() != 2)
     {
       RCLCPP_WARN(get_logger(), "Invalid or unknown parameter '%s', ignoring", parameter.first.c_str());
       continue;
     }
 
-    if (!addInputToParameterMap(parsed_parameters, splits[0], splits[1], parameter.second))
+    const std::string & input_name = splits[0];
+    const std::string & parameter_name = splits[1];
+    const rclcpp::Parameter & parameter_value = parameter.second;
+    if (!addInputToParameterMap(parsed_parameters, input_name, parameter_name, parameter_value))
     {
       parsed_parameters.clear();
       break;
@@ -383,7 +359,7 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
   // And then merge them
   for (const rclcpp::Parameter & parameter : update_parameters)
   {
-    std::vector<std::string> splits = stringSplit(parameter.get_name(), ".");
+    std::vector<std::string> splits = rcpputils::split(parameter.get_name(), '.');
     if (splits.size() != 3)
     {
       RCLCPP_WARN(get_logger(), "Invalid or unknown parameter '%s', ignoring", parameter.get_name().c_str());
@@ -400,9 +376,9 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
     }
 
     const std::string & input_name = splits[1];
-    const std::string & input_variable = splits[2];
+    const std::string & parameter_name = splits[2];
 
-    if (!addInputToParameterMap(parameters, input_name, input_variable, parameter))
+    if (!addInputToParameterMap(parameters, input_name, parameter_name, parameter))
     {
       result.successful = false;
       result.reason = "Invalid parameter";

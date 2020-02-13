@@ -87,7 +87,7 @@ private:
     rclcpp::TimerBase::SharedPtr             timer_;        /**< No incoming messages timeout */
   };
 
-  bool addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & input_variable, const rclcpp::Parameter & parameter_value);
+  bool addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & parameter_name, const rclcpp::Parameter & parameter_value);
   bool parametersAreValid(const std::map<std::string, ParameterValues> & parameters) const;
   void configureFromParameters(const std::map<std::string, ParameterValues> & parameters);
   std::map<std::string, ParameterValues> parseFromParametersMap(const std::map<std::string, rclcpp::Parameter> & parameters);
