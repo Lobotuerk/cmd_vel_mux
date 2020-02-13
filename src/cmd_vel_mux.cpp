@@ -10,10 +10,15 @@
  ** Includes
  *****************************************************************************/
 
+#include <chrono>
 #include <fstream>
 #include <functional>
+#include <limits>
+#include <map>
 #include <memory>
+#include <stdexcept>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include <geometry_msgs/msg/twist.hpp>
@@ -74,7 +79,6 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
   }
   else
   {
-    used_priorities_.clear();
     std::map<std::string, ParameterValues> parsed_parameters = parseFromParametersMap(parameters);
     if (parsed_parameters.size() == 0)
     {
@@ -105,7 +109,7 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
   RCLCPP_DEBUG(get_logger(), "CmdVelMux : successfully initialized");
 }
 
-bool CmdVelMux::parametersAreValid(const std::map<std::string, ParameterValues> & parameters)
+bool CmdVelMux::parametersAreValid(const std::map<std::string, ParameterValues> & parameters) const
 {
   for (const std::pair<std::string, ParameterValues> & parameter : parameters)
   {
@@ -303,6 +307,8 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
 
 std::map<std::string, ParameterValues> CmdVelMux::parseFromParametersMap(const std::map<std::string, rclcpp::Parameter> & parameters)
 {
+  used_priorities_.clear();
+
   std::map<std::string, ParameterValues> parsed_parameters;
   // Iterate over all parameters and parse their content
   for (const std::pair<std::string, rclcpp::Parameter> & parameter : parameters)
@@ -324,7 +330,7 @@ std::map<std::string, ParameterValues> CmdVelMux::parseFromParametersMap(const s
   return parsed_parameters;
 }
 
-void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string key)
+void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, const std::string & key)
 {
   // if subscriber was deleted or the one being called right now just ignore
   if (map_.count(key) == 0)
@@ -378,7 +384,7 @@ void CmdVelMux::commonTimerCallback()
   }
 }
 
-void CmdVelMux::timerCallback(std::string key)
+void CmdVelMux::timerCallback(const std::string & key)
 {
   if (allowed_ == key)
   {
@@ -406,7 +412,6 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
     return result;
   }
 
-  used_priorities_.clear();
   std::map<std::string, ParameterValues> parameters = parseFromParametersMap(old_parameters);
 
   // And then merge them

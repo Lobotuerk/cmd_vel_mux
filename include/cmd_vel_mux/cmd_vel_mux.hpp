@@ -67,8 +67,8 @@ private:
   std::string allowed_;
 
   void commonTimerCallback();
-  void timerCallback(std::string key);
-  void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, std::string key);
+  void timerCallback(const std::string & key);
+  void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, const std::string & key);
 
   rcl_interfaces::msg::SetParametersResult parameterUpdate(
     const std::vector<rclcpp::Parameter> & update_parameters);
@@ -92,7 +92,7 @@ private:
   };
 
   bool addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & input_variable, const rclcpp::Parameter & parameter_value);
-  bool parametersAreValid(const std::map<std::string, ParameterValues> & parameters);
+  bool parametersAreValid(const std::map<std::string, ParameterValues> & parameters) const;
   void configureFromParameters(const std::map<std::string, ParameterValues> & parameters);
   std::map<std::string, ParameterValues> parseFromParametersMap(const std::map<std::string, rclcpp::Parameter> & parameters);
 
