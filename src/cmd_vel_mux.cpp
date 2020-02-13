@@ -192,7 +192,6 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
   map_ = new_map;
 
   // (Re)create subscribers whose topic is invalid: new ones and those with changed names
-  double longest_timeout = 0.0;
   for (std::pair<const std::string, std::shared_ptr<CmdVelSub>> & m : map_)
   {
     const std::string & key = m.first;
@@ -214,19 +213,6 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
       // Create (stopped by now) a one-shot timer for every subscriber, if it doesn't exist yet
       values->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(values->values_.timeout)), [this, key]() {timerCallback(key);});
     }
-
-    if (values->values_.timeout > longest_timeout)
-    {
-      longest_timeout = values->values_.timeout;
-    }
-  }
-
-  if (!common_timer_ || longest_timeout != (common_timer_period_ / 2.0))
-  {
-    // Create another timer for cmd_vel messages from any source, so we can
-    // dislodge last active source if it gets stuck without further messages
-    common_timer_period_ = longest_timeout * 2.0;
-    common_timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(common_timer_period_)), std::bind(&CmdVelMux::commonTimerCallback, this));
   }
 
   RCLCPP_INFO(get_logger(), "CmdVelMux : (re)configured");
@@ -338,9 +324,6 @@ void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> 
     return;
   }
 
-  // Reset general timer
-  common_timer_->reset();
-
   // Reset timer for this source
   map_[key]->timer_->reset();
 
@@ -364,26 +347,9 @@ void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> 
   }
 }
 
-void CmdVelMux::commonTimerCallback()
-{
-  if (allowed_ != VACANT)
-  {
-    // No cmd_vel messages timeout happened for ANYONE, so last active source got stuck without further
-    // messages; not a big problem, just dislodge it; but possibly reflect a problem in the controller
-    RCLCPP_WARN(get_logger(), "CmdVelMux : No cmd_vel messages from ANY input received in the last %fs", common_timer_period_);
-    RCLCPP_WARN(get_logger(), "CmdVelMux : %s dislodged due to general timeout",
-                map_[allowed_]->name_.c_str());
-
-    // No cmd_vel messages timeout happened to currently active source, so...
-    allowed_ = VACANT;
-
-    // ...notify the world that nobody is publishing on cmd_vel; its vacant
-    auto active_msg = std::make_unique<std_msgs::msg::String>();
-    active_msg->data = "idle";
-    active_subscriber_pub_->publish(std::move(active_msg));
-  }
-}
-
+// The per-topic timerCallback is continually reset as cmd_vel messages are
+// received.  Thus, if it ever expires, then the topic hasn't published within
+// the specified timeout period and it should be removed.
 void CmdVelMux::timerCallback(const std::string & key)
 {
   if (allowed_ == key)

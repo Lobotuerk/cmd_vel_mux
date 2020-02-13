@@ -17,7 +17,9 @@
  ** Includes
  *****************************************************************************/
 
+#include <map>
 #include <memory>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -60,13 +62,10 @@ private:
 
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr output_topic_pub_;   /**< Multiplexed command velocity topic */
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr active_subscriber_pub_;  /**< Currently allowed cmd_vel subscriber */
-  rclcpp::TimerBase::SharedPtr common_timer_;           /**< No messages from any subscriber timeout */
-  double common_timer_period_;
   rclcpp::node_interfaces::OnSetParametersCallbackHandle::SharedPtr param_cb_;
 
   std::string allowed_;
 
-  void commonTimerCallback();
   void timerCallback(const std::string & key);
   void cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> msg, const std::string & key);
 
