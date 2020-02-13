@@ -27,7 +27,7 @@ The dictionary translates to parameters in the form of `subscribers.` + name + `
 It can be changed on the fly using `ros2 param set` command, followed with the parameter in the form mentioned above and the value.
 
 ## Adding subscriber
-To add a new subscriber, call the service `/cmd_vel_mux/set_parameters_atomically` with a `rcl_interfaces/srv/SetParametersAtomically` message with a parameters value equal to an array of 4 `rcl_interfaces/msg/Parameter` messages, containing the new subscriber topic,timeout,priority and short_desc. All 4 need to be present for a new subscriber to be added.
+To add a new subscriber, call the service `/cmd_vel_mux/set_parameters_atomically` with a `rcl_interfaces/srv/SetParametersAtomically` message with a parameters value equal to an array of 4 `rcl_interfaces/msg/Parameter` messages, containing the new subscriber topic, timeout, priority and short_desc. All 4 need to be present for a new subscriber to be added.
 
 **Ex.1** for testing:
 ```
