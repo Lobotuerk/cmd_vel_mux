@@ -160,21 +160,21 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
     // update existing or new object with the new configuration
 
     new_map[key]->name_ = key;
-    new_map[key]->priority_ = parameter_values.priority;
-    new_map[key]->short_desc_ = parameter_values.short_desc;
+    new_map[key]->values_.priority = parameter_values.priority;
+    new_map[key]->values_.short_desc = parameter_values.short_desc;
 
-    if (parameter_values.topic != new_map[key]->topic_)
+    if (parameter_values.topic != new_map[key]->values_.topic)
     {
       // Shutdown the topic if the name has changed so it gets recreated on configuration reload
       // In the case of new subscribers, topic is empty and shutdown has just no effect
-      new_map[key]->topic_ = parameter_values.topic;
+      new_map[key]->values_.topic = parameter_values.topic;
       new_map[key]->sub_ = nullptr;
     }
 
-    if (parameter_values.timeout != new_map[key]->timeout_)
+    if (parameter_values.timeout != new_map[key]->values_.timeout)
     {
       // Change timer period if the timeout changed
-      new_map[key]->timeout_ = parameter_values.timeout;
+      new_map[key]->values_.timeout = parameter_values.timeout;
       new_map[key]->timer_ = nullptr;
     }
   }
@@ -199,25 +199,25 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
     const std::shared_ptr<CmdVelSub> & values = m.second;
     if (!values->sub_)
     {
-      values->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(values->topic_, 10, [this, key](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, key);});
+      values->sub_ = this->create_subscription<geometry_msgs::msg::Twist>(values->values_.topic, 10, [this, key](const geometry_msgs::msg::Twist::SharedPtr msg){cmdVelCallback(msg, key);});
       RCLCPP_DEBUG(get_logger(), "CmdVelMux : subscribed to '%s' on topic '%s'. pr: %d, to: %.2f",
-                   values->name_.c_str(), values->topic_.c_str(),
-                   values->priority_, values->timeout_);
+                   values->name_.c_str(), values->values_.topic.c_str(),
+                   values->values_.priority, values->values_.timeout);
     }
     else
     {
-      RCLCPP_DEBUG(get_logger(), "CmdVelMux : no need to re-subscribe to input topic '%s'", values->topic_.c_str());
+      RCLCPP_DEBUG(get_logger(), "CmdVelMux : no need to re-subscribe to input topic '%s'", values->values_.topic.c_str());
     }
 
     if (!values->timer_)
     {
       // Create (stopped by now) a one-shot timer for every subscriber, if it doesn't exist yet
-      values->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(values->timeout_)), [this, key]() {timerCallback(key);});
+      values->timer_ = this->create_wall_timer(std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::duration<double>(values->values_.timeout)), [this, key]() {timerCallback(key);});
     }
 
-    if (values->timeout_ > longest_timeout)
+    if (values->values_.timeout > longest_timeout)
     {
-      longest_timeout = values->timeout_;
+      longest_timeout = values->values_.timeout;
     }
   }
 
@@ -348,7 +348,7 @@ void CmdVelMux::cmdVelCallback(const std::shared_ptr<geometry_msgs::msg::Twist> 
   // already allowed or has higher priority that the currently allowed
   if ((allowed_ == VACANT) ||
       (allowed_ == key)    ||
-      (map_[key]->priority_ > map_[allowed_]->priority_))
+      (map_[key]->values_.priority > map_[allowed_]->values_.priority))
   {
     if (allowed_ != key)
     {

@@ -37,13 +37,13 @@ namespace cmd_vel_mux
  ** CmdVelMux
  *****************************************************************************/
 
- struct ParameterValues
- {
-   std::string topic;
-   double timeout{-1.0};
-   int64_t priority{-1};
-   std::string short_desc;
- };
+struct ParameterValues
+{
+  std::string topic;       /**< The name of the topic */
+  double timeout{-1.0};    /**< Timer's timeout, in seconds  */
+  int64_t priority{-1};    /**< UNIQUE integer from 0 (lowest priority) to MAX_INT */
+  std::string short_desc;  /**< Short description */
+};
 
 class CmdVelMux final : public rclcpp::Node
 {
@@ -83,12 +83,9 @@ private:
   struct CmdVelSub final
   {
     std::string            name_;         /**< Descriptive name; must be unique to this subscriber */
-    std::string            topic_;        /**< The name of the topic */
+    ParameterValues        values_;
     rclcpp::Subscription<geometry_msgs::msg::Twist>::SharedPtr        sub_;         /**< The subscriber itself */
     rclcpp::TimerBase::SharedPtr             timer_;        /**< No incoming messages timeout */
-    double                 timeout_;      /**< Timer's timeout, in seconds  */
-    uint32_t               priority_;     /**< UNIQUE integer from 0 (lowest priority) to MAX_INT */
-    std::string            short_desc_;   /**< Short description (optional) */
   };
 
   bool addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & input_variable, const rclcpp::Parameter & parameter_value);
