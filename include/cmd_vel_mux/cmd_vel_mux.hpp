@@ -19,7 +19,6 @@
 
 #include <map>
 #include <memory>
-#include <set>
 #include <string>
 #include <vector>
 
@@ -93,7 +92,6 @@ private:
   std::map<std::string, ParameterValues> parseFromParametersMap(const std::map<std::string, rclcpp::Parameter> & parameters);
 
   std::map<std::string, std::shared_ptr<CmdVelSub>> map_;
-  std::set<unsigned int> used_priorities_;
 };
 
 } // namespace cmd_vel_mux

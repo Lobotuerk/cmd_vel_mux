@@ -16,6 +16,7 @@
 #include <limits>
 #include <map>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -84,6 +85,8 @@ CmdVelMux::CmdVelMux(rclcpp::NodeOptions options) : rclcpp::Node("cmd_vel_mux", 
 
 bool CmdVelMux::parametersAreValid(const std::map<std::string, ParameterValues> & parameters) const
 {
+  std::set<int64_t> used_priorities;
+
   for (const std::pair<std::string, ParameterValues> & parameter : parameters)
   {
     if (parameter.second.topic.empty())
@@ -106,6 +109,13 @@ bool CmdVelMux::parametersAreValid(const std::map<std::string, ParameterValues> 
       RCLCPP_WARN(get_logger(), "Empty short_desc for '%s', ignoring", parameter.first.c_str());
       return false;
     }
+
+    if (used_priorities.count(parameter.second.priority) != 0)
+    {
+      RCLCPP_WARN(get_logger(), "Cannot have duplicate priorities, ignoring");
+      return false;
+    }
+    used_priorities.insert(parameter.second.priority);
   }
 
   return true;
@@ -238,12 +248,6 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
       RCLCPP_WARN(get_logger(), "Priority out of range, must be between 0 and MAX_UINT32");
       return false;
     }
-    if (used_priorities_.count(priority) != 0)
-    {
-      RCLCPP_WARN(get_logger(), "Cannot have duplicate priorities, ignoring");
-      return false;
-    }
-    used_priorities_.insert(priority);
     parsed_parameters[input_name].priority = priority;
   }
   else if (parameter_name == "short_desc")
@@ -266,8 +270,6 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
 
 std::map<std::string, ParameterValues> CmdVelMux::parseFromParametersMap(const std::map<std::string, rclcpp::Parameter> & parameters)
 {
-  used_priorities_.clear();
-
   std::map<std::string, ParameterValues> parsed_parameters;
   // Iterate over all parameters and parse their content
   for (const std::pair<std::string, rclcpp::Parameter> & parameter : parameters)
