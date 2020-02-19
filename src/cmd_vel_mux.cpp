@@ -203,14 +203,6 @@ void CmdVelMux::configureFromParameters(const std::map<std::string, ParameterVal
 
 bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & parsed_parameters, const std::string & input_name, const std::string & parameter_name, const rclcpp::Parameter & parameter_value)
 {
-  if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
-  {
-    if (parsed_parameters.count(input_name) > 0)
-    {
-      parsed_parameters.erase(input_name);
-    }
-    return true;
-  }
   if (parsed_parameters.count(input_name) == 0)
   {
     parsed_parameters.emplace(std::make_pair(input_name, ParameterValues()));
@@ -218,46 +210,67 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
 
   if (parameter_name == "topic")
   {
-    if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
+    if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
+    {
+      parsed_parameters[input_name].topic.clear();
+    }
+    else if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+    {
+      parsed_parameters[input_name].topic = parameter_value.as_string();
+    }
+    else
     {
       RCLCPP_WARN(get_logger(), "topic must be a string; ignoring");
       return false;
     }
-    parsed_parameters[input_name].topic = parameter_value.as_string();
   }
   else if (parameter_name == "timeout")
   {
-    if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_DOUBLE)
+    if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
+    {
+      parsed_parameters[input_name].timeout = -1.0;
+    }
+    else if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_DOUBLE)
+    {
+      parsed_parameters[input_name].timeout = parameter_value.as_double();
+    }
+    else
     {
       RCLCPP_WARN(get_logger(), "timeout must be a double; ignoring");
       return false;
     }
-    parsed_parameters[input_name].timeout = parameter_value.as_double();
   }
   else if (parameter_name == "priority")
   {
-    if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_INTEGER)
+    if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
     {
-      RCLCPP_WARN(get_logger(), "priority must be an integer; ignoring");
-      return false;
+      parsed_parameters[input_name].priority = -1;
     }
-
-    int64_t priority = parameter_value.as_int();
-    if (priority < 0 || priority > std::numeric_limits<uint32_t>::max())
+    else if (parameter_value.as_int() >= 0 && parameter_value.as_int() < std::numeric_limits<uint32_t>::max())
+    {
+        parsed_parameters[input_name].priority = parameter_value.as_int();
+    }
+    else
     {
       RCLCPP_WARN(get_logger(), "Priority out of range, must be between 0 and MAX_UINT32");
       return false;
     }
-    parsed_parameters[input_name].priority = priority;
   }
   else if (parameter_name == "short_desc")
   {
-    if (parameter_value.get_type() != rclcpp::ParameterType::PARAMETER_STRING)
+    if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_NOT_SET)
+    {
+      parsed_parameters[input_name].short_desc.clear();
+    }
+    else if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_STRING)
+    {
+      parsed_parameters[input_name].short_desc = parameter_value.as_string();
+    }
+    else
     {
       RCLCPP_WARN(get_logger(), "short_desc must be a string; ignoring");
       return false;
     }
-    parsed_parameters[input_name].short_desc = parameter_value.as_string();
   }
   else
   {
@@ -387,7 +400,13 @@ rcl_interfaces::msg::SetParametersResult CmdVelMux::parameterUpdate(
       break;
     }
   }
-
+  for (const std::pair<std::string, ParameterValues> & parameter : parameters)
+  {
+    if (parameter.second == ParameterValues())
+    {
+      parameters.erase(parameter.first);
+    }
+  }
   if (result.successful)
   {
     if (parametersAreValid(parameters))

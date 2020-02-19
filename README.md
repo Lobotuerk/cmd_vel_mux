@@ -33,7 +33,7 @@ To add a new subscriber, call the service `/cmd_vel_mux/set_parameters_atomicall
 
 **Ex.1** for testing:
 ```
-'ros2 service call /cmd_vel_mux/set_parameters_atomically rcl_interfaces/srv/SetParametersAtomically "{parameters: [{name : subscribers.new_input.topic, value: {type: 4, string_value: /input/new_input}}, {name : subscribers.new_input.priority, value: {type: 2, integer_value: 20}}, {name : subscribers.new_input.timeout, value: {type: 3, double_value: 0.2}}, {name : subscribers.new_input.short_desc, value: {type: 4, string_value: 'test input'}}]}"
+ros2 service call /cmd_vel_mux/set_parameters_atomically rcl_interfaces/srv/SetParametersAtomically "{parameters: [{name : subscribers.new_input.topic, value: {type: 4, string_value: /input/new_input}}, {name : subscribers.new_input.priority, value: {type: 2, integer_value: 20}}, {name : subscribers.new_input.timeout, value: {type: 3, double_value: 0.2}}, {name : subscribers.new_input.short_desc, value: {type: 4, string_value: 'test input'}}]}"
 ```
 sets *new_input* subscriber listening at topic `/input/new_input`
 

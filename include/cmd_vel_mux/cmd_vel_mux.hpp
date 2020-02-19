@@ -46,6 +46,27 @@ struct ParameterValues
   std::string short_desc;  /**< Short description */
 };
 
+bool operator == (const ParameterValues & parameters1, const ParameterValues & parameters2)
+{
+  if (parameters1.topic != parameters2.topic)
+  {
+    return false;
+  }
+  else if (parameters1.timeout != parameters2.timeout)
+  {
+    return false;
+  }
+  else if (parameters1.priority != parameters2.priority)
+  {
+    return false;
+  }
+  else if (parameters1.short_desc != parameters2.short_desc)
+  {
+    return false;
+  }
+  return true;
+}
+
 class CmdVelMux final : public rclcpp::Node
 {
 public:
