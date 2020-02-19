@@ -246,13 +246,19 @@ bool CmdVelMux::addInputToParameterMap(std::map<std::string, ParameterValues> & 
     {
       parsed_parameters[input_name].priority = -1;
     }
-    else if (parameter_value.as_int() >= 0 && parameter_value.as_int() < std::numeric_limits<uint32_t>::max())
+    else if (parameter_value.get_type() == rclcpp::ParameterType::PARAMETER_INTEGER)
     {
-        parsed_parameters[input_name].priority = parameter_value.as_int();
+      int64_t priority = parameter_value.as_int();
+      if (priority < 0 || priority > std::numeric_limits<uint32_t>::max())
+      {
+         RCLCPP_WARN(get_logger(), "Priority out of range, must be between 0 and MAX_UINT32");
+         return false;
+      }
+      parsed_parameters[input_name].priority = parameter_value.as_int();
     }
     else
     {
-      RCLCPP_WARN(get_logger(), "Priority out of range, must be between 0 and MAX_UINT32");
+      RCLCPP_WARN(get_logger(), "priority must be an integer; ignoring");
       return false;
     }
   }
